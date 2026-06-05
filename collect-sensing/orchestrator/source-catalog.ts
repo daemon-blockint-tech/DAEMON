@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
-import { sourcesConfigPath, sourcesConfigPaths } from "../paths.js";
+import { sourcesConfigPath } from "../paths.js";
 
 export type ConnectorType =
   | "file"
@@ -86,15 +86,9 @@ export interface SourceNormalizeConfig {
   readonly meta?: Record<string, unknown>;
 }
 
-export interface IngestSourceScope {
-  readonly tenantId: string;
-  readonly domainId?: string;
-}
-
 export interface IngestSourceDefinition {
   readonly id: string;
   readonly enabled: boolean;
-  readonly scope?: IngestSourceScope;
   readonly connector: SourceConnectorConfig;
   readonly normalize: SourceNormalizeConfig;
 }
@@ -293,24 +287,6 @@ function parseNormalize(raw: unknown, sourceId: string): SourceNormalizeConfig {
   };
 }
 
-function parseScope(raw: unknown, sourceId: string): IngestSourceScope | undefined {
-  if (raw === undefined) {
-    return undefined;
-  }
-  const obj = assertObject(raw, `source ${sourceId} scope`);
-  const tenantId = obj.tenantId;
-  if (typeof tenantId !== "string" || !tenantId.trim()) {
-    throw new Error(`source ${sourceId}: scope.tenantId is required when scope is set`);
-  }
-  return {
-    tenantId: tenantId.trim(),
-    domainId:
-      typeof obj.domainId === "string" && obj.domainId.trim()
-        ? obj.domainId.trim()
-        : undefined,
-  };
-}
-
 function parseSource(raw: unknown): IngestSourceDefinition {
   const obj = assertObject(raw, "source entry");
   const id = obj.id;
@@ -318,13 +294,11 @@ function parseSource(raw: unknown): IngestSourceDefinition {
     throw new Error("source id is required");
   }
   const enabled = obj.enabled !== false;
-  const trimmedId = id.trim();
   return {
-    id: trimmedId,
+    id: id.trim(),
     enabled,
-    scope: parseScope(obj.scope, trimmedId),
-    connector: parseConnector(obj.connector, trimmedId),
-    normalize: parseNormalize(obj.normalize, trimmedId),
+    connector: parseConnector(obj.connector, id.trim()),
+    normalize: parseNormalize(obj.normalize, id.trim()),
   };
 }
 
@@ -342,44 +316,27 @@ export class SourceCatalog {
   }
 
   static fromYamlFile(path: string = sourcesConfigPath()): SourceCatalog {
-    const paths =
-      path === sourcesConfigPath() ? sourcesConfigPaths() : [path];
-    const parsed: IngestSourceDefinition[] = [];
-    for (const filePath of paths) {
-      const text = readFileSync(filePath, "utf8");
-      const doc = parseYaml(text) as SourcesYaml;
-      if (!Array.isArray(doc.sources)) {
-        throw new Error(`${filePath} must contain a sources array`);
-      }
-      parsed.push(...doc.sources.map(parseSource));
+    const text = readFileSync(path, "utf8");
+    const doc = parseYaml(text) as SourcesYaml;
+    if (!Array.isArray(doc.sources)) {
+      throw new Error("sources.yaml must contain a sources array");
     }
+    const parsed = doc.sources.map(parseSource);
     const parityFixtures =
       process.env.DAEMON_PARITY_FIXTURES === "1" ||
       process.env.DAEMON_PARITY_FIXTURES === "true";
-    const abcFixtures =
-      process.env.DAEMON_ABC_FIXTURES === "1" ||
-      process.env.DAEMON_ABC_FIXTURES === "true";
-    const sources = parsed.map((s) => {
-      if (
-        parityFixtures &&
-        (s.id === "fixture-http-pull" || s.id === "fixture-postgres-read")
-      ) {
-        return { ...s, enabled: true };
-      }
-      if (abcFixtures && s.id.startsWith("abc-fixture-")) {
-        return { ...s, enabled: true };
-      }
-      return s;
-    });
+    const sources = parityFixtures
+      ? parsed.map((s) =>
+          s.id === "fixture-http-pull" || s.id === "fixture-postgres-read"
+            ? { ...s, enabled: true }
+            : s,
+        )
+      : parsed;
     return new SourceCatalog(sources);
   }
 
   list(): IngestSourceDefinition[] {
     return [...this.byId.values()];
-  }
-
-  get(sourceId: string): IngestSourceDefinition | undefined {
-    return this.byId.get(sourceId);
   }
 
   require(sourceId: string): IngestSourceDefinition {

@@ -4,9 +4,8 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
-  Logger,
 } from "@nestjs/common";
-import type { Request, Response } from "express";
+import type { Response } from "express";
 import { DaemonError, ErrorCodes, type ErrorCode } from "@daemon/platform-types";
 
 function asDaemonError(exception: unknown): DaemonError | null {
@@ -29,15 +28,9 @@ function asDaemonError(exception: unknown): DaemonError | null {
 
 @Catch()
 export class DaemonExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(DaemonExceptionFilter.name);
-
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const res = ctx.getResponse<Response>();
-    const req = ctx.getRequest<Request>();
-    const requestId =
-      (req.headers["x-request-id"] as string | undefined) ??
-      (req.headers["x-correlation-id"] as string | undefined);
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
@@ -51,7 +44,6 @@ export class DaemonExceptionFilter implements ExceptionFilter {
       res.status(daemon.status).json({
         code: daemon.code,
         message: daemon.message,
-        ...(requestId ? { requestId } : {}),
       });
       return;
     }
@@ -60,18 +52,15 @@ export class DaemonExceptionFilter implements ExceptionFilter {
       res.status(HttpStatus.NOT_FOUND).json({
         code: ErrorCodes.NOT_FOUND,
         message: exception.message,
-        ...(requestId ? { requestId } : {}),
       });
       return;
     }
 
-    this.logger.error(
-      exception instanceof Error ? exception.stack ?? exception.message : String(exception),
-    );
+    const message =
+      exception instanceof Error ? exception.message : "internal server error";
     res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       code: ErrorCodes.INTERNAL,
-      message: "internal server error",
-      ...(requestId ? { requestId } : {}),
+      message,
     });
   }
 }

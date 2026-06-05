@@ -11,14 +11,12 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test --import tsx \"**/*.test.ts\""
+    "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@daemon/platform-types": "workspace:*"
   },
   "devDependencies": {
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }

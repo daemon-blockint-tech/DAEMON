@@ -23,8 +23,6 @@ import { AgentsModule } from "./agents/agents.module";
 import { FunctionsModule } from "./functions/functions.module";
 import { AdminModule } from "./admin/admin.module";
 import { OpsModule } from "./ops/ops.module";
-import { MdmModule } from "./mdm/mdm.module";
-import { ActionsModule } from "./actions/actions.module";
 
 @Module({
   imports: [
@@ -51,8 +49,6 @@ import { ActionsModule } from "./actions/actions.module";
     FunctionsModule,
     AdminModule,
     OpsModule,
-    MdmModule,
-    ActionsModule,
     ProductsModule,
   ],
 })

@@ -56,30 +56,7 @@ export function chatOpenRouterAsLlm(model: ChatOpenRouter): TextLlm {
 }
 
 export function extractCypherBlock(text: string): string {
-  const marker = "```";
-  const lower = text.toLowerCase();
-  let from = 0;
-  while (from < text.length) {
-    const fenceStart = lower.indexOf(marker, from);
-    if (fenceStart < 0) break;
-    let cursor = fenceStart + marker.length;
-    while (cursor < text.length && (text[cursor] === " " || text[cursor] === "\t")) {
-      cursor++;
-    }
-    if (lower.slice(cursor, cursor + 6) === "cypher") {
-      cursor += 6;
-    }
-    while (cursor < text.length && (text[cursor] === " " || text[cursor] === "\t")) {
-      cursor++;
-    }
-    if (cursor < text.length && text[cursor] === "\n") {
-      cursor++;
-    }
-    const fenceEnd = lower.indexOf(marker, cursor);
-    if (fenceEnd >= 0) {
-      return text.slice(cursor, fenceEnd).trim();
-    }
-    from = fenceStart + marker.length;
-  }
+  const fenced = text.match(/```(?:cypher)?\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) return fenced[1].trim();
   return text.trim();
 }

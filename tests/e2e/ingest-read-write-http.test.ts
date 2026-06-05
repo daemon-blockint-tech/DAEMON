@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { globalRegistry, defaultScope } from "@daemon/ontology";
 import { entityId, ontologyId } from "@daemon/platform-types";
-import { createGatewayTestApp, devApiKey } from "../helpers/gateway-test-app.js";
+import { createGatewayTestApp, DEV_API_KEY } from "../helpers/gateway-test-app.js";
 import { startMockIngestServer } from "../helpers/mock-ingest-server.js";
 
 const ONT = "foundation";
@@ -21,7 +21,7 @@ describe("e2e HTTP path", () => {
     });
     const headers = {
       "content-type": "application/json",
-      "x-api-key": devApiKey(),
+      "x-api-key": DEV_API_KEY,
     };
     try {
       const ingestRes = await fetch(`${baseUrl}/v1/ingest/records`, {

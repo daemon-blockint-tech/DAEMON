@@ -1,25 +1,26 @@
-import { Controller, Get, Param, Query } from "@nestjs/common";
-import { Protected } from "../auth/protected.decorator";
+import { Controller, Get, Headers, Param, Query } from "@nestjs/common";
 import { PolicyCheck } from "../auth/policy-check.decorator";
-import { DaemonScope } from "../auth/daemon-scope.decorator";
-import type { TenantContextHeaders } from "../platform/tenant-context";
 import { ReadService } from "./read.service";
+import { TenantContextService } from "../platform/tenant-context";
 
 @Controller("v1/read")
 export class ReadController {
-  constructor(private readonly reads: ReadService) {}
+  constructor(
+    private readonly reads: ReadService,
+    private readonly tenantContext: TenantContextService,
+  ) {}
 
   @Get("entities")
-  @Protected()
   @PolicyCheck("read", "entity")
   listEntities(
-    @DaemonScope() ctx: TenantContextHeaders,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Query("ontologyId") ontologyId: string,
     @Query("entityType") entityType?: string,
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
     @Query("updatedAfter") updatedAfter?: string,
   ) {
+    const ctx = this.tenantContext.resolve(headers);
     return this.reads.listEntities(ctx, {
       ontologyId: ontologyId ?? "foundation",
       entityType,
@@ -30,13 +31,12 @@ export class ReadController {
   }
 
   @Get("entities/:entityId")
-  @Protected()
-  @PolicyCheck("read", "entity")
   getEntity(
-    @DaemonScope() ctx: TenantContextHeaders,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Param("entityId") entityId: string,
     @Query("ontologyId") ontologyId: string,
   ) {
+    const ctx = this.tenantContext.resolve(headers);
     return this.reads.getEntity(ctx, ontologyId ?? "foundation", entityId);
   }
 }

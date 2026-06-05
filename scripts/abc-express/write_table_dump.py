@@ -6,8 +6,6 @@ import json
 import sys
 from pathlib import Path
 
-from _path_utils import safe_table_name
-
 DUMP_DIR = Path(__file__).parent / "dumps"
 
 
@@ -15,7 +13,7 @@ def main() -> int:
     if len(sys.argv) != 2:
         print("usage: write_table_dump.py <table_name>", file=sys.stderr)
         return 1
-    table = safe_table_name(sys.argv[1])
+    table = sys.argv[1]
     raw = sys.stdin.read().strip()
     if not raw:
         rows: list = []

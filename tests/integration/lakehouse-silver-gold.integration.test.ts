@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createGatewayTestApp, devApiKey } from "../helpers/gateway-test-app.js";
+import { createGatewayTestApp, DEV_API_KEY } from "../helpers/gateway-test-app.js";
 import { PostgresClient } from "@daemon/data-platform/operational-store";
 import { withTenantSession } from "@daemon/data-platform/operational-store/tenant-session";
 import { skipUnlessPostgresReady } from "../helpers/postgres-integration.js";
@@ -11,7 +11,7 @@ const TENANT = "inst-alpha";
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
     "content-type": "application/json",
-    "x-api-key": devApiKey(),
+    "x-api-key": DEV_API_KEY,
     ...extra,
   };
 }

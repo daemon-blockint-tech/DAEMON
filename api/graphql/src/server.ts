@@ -1,19 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { execute, GraphQLError, parse, validate } from "graphql";
+import { graphql } from "graphql";
 import { schema } from "./schema.js";
-import {
-  MAX_GRAPHQL_BODY_BYTES,
-  MAX_GRAPHQL_QUERY_CHARS,
-  validationRules,
-} from "./validation.js";
 
 interface GraphQLRequest {
   query: string;
   variables?: Record<string, unknown>;
   operationName?: string;
 }
-
-const INTERNAL_ERROR = "internal server error";
 
 /**
  * Builds the GraphQL HTTP server. It executes operations against the shared
@@ -26,8 +19,8 @@ const INTERNAL_ERROR = "internal server error";
 export function createGraphQLServer(): Server {
   return createServer((req, res) => {
     handle(req, res).catch((err) => {
-      console.error("[graphql] unhandled error", err);
-      sendJson(res, 500, { errors: [{ message: INTERNAL_ERROR }] });
+      const message = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { errors: [{ message }] });
     });
   });
 }
@@ -45,30 +38,9 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     if (!body || typeof body.query !== "string") {
       return sendJson(res, 400, { errors: [{ message: "query is required" }] });
     }
-    if (body.query.length > MAX_GRAPHQL_QUERY_CHARS) {
-      return sendJson(res, 400, {
-        errors: [{ message: `query exceeds maximum length of ${MAX_GRAPHQL_QUERY_CHARS}` }],
-      });
-    }
-
-    let document;
-    try {
-      document = parse(body.query);
-    } catch (err) {
-      const message = err instanceof GraphQLError ? err.message : "invalid GraphQL query";
-      return sendJson(res, 400, { errors: [{ message }] });
-    }
-
-    const ruleErrors = validate(schema, document, validationRules());
-    if (ruleErrors.length > 0) {
-      return sendJson(res, 400, {
-        errors: ruleErrors.map((e) => ({ message: e.message })),
-      });
-    }
-
-    const result = await execute({
+    const result = await graphql({
       schema,
-      document,
+      source: body.query,
       variableValues: body.variables,
       operationName: body.operationName,
     });
@@ -81,16 +53,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 function readJson<T>(req: IncomingMessage): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    let total = 0;
-    req.on("data", (chunk: Buffer) => {
-      total += chunk.length;
-      if (total > MAX_GRAPHQL_BODY_BYTES) {
-        req.destroy();
-        reject(new Error("request body too large"));
-        return;
-      }
-      chunks.push(chunk);
-    });
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("end", () => {
       const raw = Buffer.concat(chunks).toString("utf8").trim();
       if (!raw) return resolve(undefined);

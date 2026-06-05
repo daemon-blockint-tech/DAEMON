@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createGatewayTestApp, devApiKey } from "../helpers/gateway-test-app.js";
+import { createGatewayTestApp, DEV_API_KEY } from "../helpers/gateway-test-app.js";
 import { skipUnlessPostgresReady } from "../helpers/postgres-integration.js";
 
 const FOUNDATION = "foundation";
@@ -9,7 +9,7 @@ const repoRoot = process.env.DAEMON_REPO_ROOT ?? process.cwd();
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
     "content-type": "application/json",
-    "x-api-key": devApiKey(),
+    "x-api-key": DEV_API_KEY,
     ...extra,
   };
 }

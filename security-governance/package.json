@@ -5,9 +5,6 @@
   "type": "module",
   "exports": {
     "./policy-engine.js": "./dist/policy-engine.js",
-    "./policy/rbac.js": "./dist/policy/rbac.js",
-    "./policy/abac.js": "./dist/policy/abac.js",
-    "./identity/authz.js": "./dist/identity/authz.js",
     "./guardrails/prompt-guard.js": "./dist/guardrails/prompt-guard.js",
     "./audit/audit-port-adapter.js": "./dist/audit/audit-port-adapter.js"
   },

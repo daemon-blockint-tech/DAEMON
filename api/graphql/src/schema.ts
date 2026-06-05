@@ -7,9 +7,7 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   GraphQLString,
-  GraphQLError,
 } from "graphql";
-import { MAX_ENTITY_ID_LENGTH, MAX_SEARCH_QUERY_LENGTH } from "./validation.js";
 import { globalRegistry, defaultOntology, type EntityRecord } from "@daemon/ontology";
 import { entityId, ontologyId } from "@daemon/platform-types";
 
@@ -61,9 +59,6 @@ export const schema = new GraphQLSchema({
           ontologyId: { type: GraphQLString },
         },
         resolve: (_root, args: { id: string; ontologyId?: string }) => {
-          if (args.id.length > MAX_ENTITY_ID_LENGTH) {
-            throw new GraphQLError(`id exceeds maximum length of ${MAX_ENTITY_ID_LENGTH}`);
-          }
           const ont = ontologyId(args.ontologyId ?? defaultOntology());
           return globalRegistry.get(ont, entityId(args.id)) ?? null;
         },
@@ -75,23 +70,16 @@ export const schema = new GraphQLSchema({
           ontologyId: { type: GraphQLString },
         },
         resolve: (_root, args: { q: string; ontologyId?: string }) => {
-          if (args.q.length > MAX_SEARCH_QUERY_LENGTH) {
-            throw new GraphQLError(
-              `search q exceeds maximum length of ${MAX_SEARCH_QUERY_LENGTH}`,
-            );
-          }
           const ont = args.ontologyId ? ontologyId(args.ontologyId) : undefined;
           const needle = args.q.toLowerCase();
-          return globalRegistry
-            .list(ont)
-            .filter((record) => recordContainsNeedle(record, needle));
+          return globalRegistry.list(ont).filter((record) => matches(record, needle));
         },
       },
     },
   }),
 });
 
-function recordContainsNeedle(record: EntityRecord, needle: string): boolean {
+function matches(record: EntityRecord, needle: string): boolean {
   if (record.entityId.toLowerCase().includes(needle)) return true;
   return JSON.stringify(record.properties).toLowerCase().includes(needle);
 }

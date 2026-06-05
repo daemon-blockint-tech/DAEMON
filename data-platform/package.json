@@ -28,10 +28,7 @@
       ],
       "product-sessions/gpt-session-store": [
         "./dist/product-sessions/gpt-session-store.d.ts"
-      ],
-      "mdm/mdm-store": ["./dist/mdm/mdm-store.d.ts"],
-      "mdm/location-matcher": ["./dist/mdm/location-matcher.d.ts"],
-      "mdm/pilot-locations": ["./dist/mdm/pilot-locations.d.ts"]
+      ]
     }
   },
   "exports": {
@@ -92,26 +89,11 @@
       "types": "./dist/product-sessions/gpt-session-store.d.ts",
       "import": "./dist/product-sessions/gpt-session-store.js",
       "default": "./dist/product-sessions/gpt-session-store.js"
-    },
-    "./mdm/mdm-store": {
-      "types": "./dist/mdm/mdm-store.d.ts",
-      "import": "./dist/mdm/mdm-store.js",
-      "default": "./dist/mdm/mdm-store.js"
-    },
-    "./mdm/location-matcher": {
-      "types": "./dist/mdm/location-matcher.d.ts",
-      "import": "./dist/mdm/location-matcher.js",
-      "default": "./dist/mdm/location-matcher.js"
-    },
-    "./mdm/pilot-locations": {
-      "types": "./dist/mdm/pilot-locations.d.ts",
-      "import": "./dist/mdm/pilot-locations.js",
-      "default": "./dist/mdm/pilot-locations.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test --import tsx operational-store/postgres-client.test.ts cache/redis-client.test.ts graph-store/postgres-graph-store.test.ts event-bus/nats-publisher.test.ts mdm/location-matcher.test.ts",
+    "test": "node --test --import tsx operational-store/postgres-client.test.ts cache/redis-client.test.ts graph-store/postgres-graph-store.test.ts event-bus/nats-publisher.test.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
     "db:migrate": "node --import tsx migrations/run-migrations.ts"
   },

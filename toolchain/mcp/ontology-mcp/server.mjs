@@ -8,11 +8,7 @@ import { createInterface } from "node:readline";
 const GATEWAY = process.env.DAEMON_GATEWAY_URL ?? "http://127.0.0.1:3000";
 const TENANT = process.env.DAEMON_TENANT ?? "default";
 const DOMAIN = process.env.DAEMON_DOMAIN ?? "foundation";
-const API_KEY = process.env.DAEMON_API_KEY?.trim();
-if (!API_KEY) {
-  console.error("DAEMON_API_KEY is required");
-  process.exit(1);
-}
+const API_KEY = process.env.DAEMON_API_KEY ?? "daemon-dev-key";
 
 const TOOLS = [
   {

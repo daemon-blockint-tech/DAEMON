@@ -32,30 +32,3 @@ tenants:
     quotas:
       maxEntities: 100000
       maxWritesPerMinute: 500
-  - id: abc-antero
-    displayName: ABC Antero lens
-    kind: institution
-    enabledDomains:
-      - foundation
-      - logistics
-    quotas:
-      maxEntities: 200000
-      maxWritesPerMinute: 800
-  - id: abc-arandy
-    displayName: ABC Arandy lens
-    kind: institution
-    enabledDomains:
-      - foundation
-      - logistics
-    quotas:
-      maxEntities: 200000
-      maxWritesPerMinute: 800
-  - id: abc-holding
-    displayName: ABC Express Group holding
-    kind: platform
-    enabledDomains:
-      - foundation
-      - logistics
-    quotas:
-      maxEntities: 500000
-      maxWritesPerMinute: 2000

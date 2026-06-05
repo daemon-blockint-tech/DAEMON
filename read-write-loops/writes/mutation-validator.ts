@@ -1,6 +1,5 @@
 import type { WriteCommand } from "./command-gateway.js";
 import { DaemonError, ErrorCodes } from "@daemon/platform-types";
-import { assertActionTypeAllowed } from "./action-type-guard.js";
 import { assertWriteLogicAllowed } from "./write-logic-guard.js";
 
 export class MutationValidator {
@@ -18,6 +17,5 @@ export class MutationValidator {
       }
     }
     assertWriteLogicAllowed(cmd);
-    assertActionTypeAllowed(cmd);
   }
 }

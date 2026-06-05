@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
-import { assertSafeScopeSegment } from "@daemon/context-ports";
+import { basename } from "node:path";
 
 function usage(): void {
   console.error(`Usage: daemon-agent push --file <path> --source <sourceId> [options]
 
 Options:
   --gateway <url>     Gateway base URL (default DAEMON_GATEWAY_URL or http://127.0.0.1:3000)
-  --api-key <key>     DAEMON_API_KEY or --api-key (required)
+  --api-key <key>     DAEMON_API_KEY or --api-key
   --tenant <id>       X-Daemon-Tenant (default: default)
   --domain <id>       X-Daemon-Domain (default: foundation)
   --ontology <id>     ontologyId when sending raw JSONL rows
@@ -40,13 +39,6 @@ function parseArgs(argv: string[]) {
   return { opts, positional };
 }
 
-function resolveIngestFile(pathArg: string): string {
-  if (pathArg.includes("\0")) {
-    throw new Error("invalid file path");
-  }
-  return resolve(pathArg);
-}
-
 async function main(): Promise<void> {
   const { opts, positional } = parseArgs(process.argv.slice(2));
   if (positional[0] !== "push" || !opts.file) usage();
@@ -56,22 +48,15 @@ async function main(): Promise<void> {
     process.env.DAEMON_GATEWAY_URL ??
     "http://127.0.0.1:3000";
   const apiKey = opts["api-key"] ?? process.env.DAEMON_API_KEY;
-  if (!apiKey) {
-    console.error("DAEMON_API_KEY or --api-key is required");
-    process.exit(1);
-  }
   const sourceId = opts.source ?? "agent";
   const tenant = opts.tenant ?? "default";
   const domain = opts.domain ?? "foundation";
-  assertSafeScopeSegment("tenantId", tenant);
-  assertSafeScopeSegment("domainId", domain);
   const ontologyId = opts.ontology;
   const entityType = opts["entity-type"];
 
-  const filePath = resolveIngestFile(opts.file);
-  const text = readFileSync(filePath, "utf8");
+  const text = readFileSync(opts.file, "utf8");
   const records: Record<string, unknown>[] = [];
-  if (filePath.endsWith(".json")) {
+  if (opts.file.endsWith(".json")) {
     const parsed = JSON.parse(text) as unknown;
     if (Array.isArray(parsed)) {
       for (const row of parsed) {
@@ -93,7 +78,7 @@ async function main(): Promise<void> {
         sourceId,
         records: records.map((row) => ({
           ontologyId,
-          entityId: String(row.id ?? row.entityId ?? `${basename(filePath)}-${records.indexOf(row)}`),
+          entityId: String(row.id ?? row.entityId ?? `${basename(opts.file)}-${records.indexOf(row)}`),
           entityType: entityType ?? (row.entityType as string | undefined),
           properties: row,
         })),
@@ -102,26 +87,25 @@ async function main(): Promise<void> {
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
     "X-Daemon-Tenant": tenant,
     "X-Daemon-Domain": domain,
   };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
 
   const res = await fetch(`${gateway.replace(/\/$/, "")}/v1/ingest/records`, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
   });
+  const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    console.error(`ingest failed (HTTP ${res.status})`);
+    console.error("ingest failed", res.status, json);
     process.exit(1);
   }
-  const json = await res.json().catch(() => ({}));
   console.log(JSON.stringify(json, null, 2));
 }
 
 main().catch((err) => {
-  const message = err instanceof Error ? err.message : "unexpected error";
-  console.error(message.replace(/[\r\n]/g, " "));
+  console.error(err);
   process.exit(1);
 });

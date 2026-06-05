@@ -71,7 +71,6 @@ export const DEFAULT_GATEWAY_POLICY_RULES: PolicyRule[] = [
   { action: "write", resource: "lakehouse-export", effect: "allow" },
   { action: "read", resource: "media", effect: "allow" },
   { action: "write", resource: "media", effect: "allow" },
-  { action: "read", resource: "ontology", effect: "allow" },
   { action: "read", resource: "ontology-pack", effect: "allow" },
   { action: "write", resource: "pipeline", effect: "allow" },
   { action: "write", resource: "eval", effect: "allow" },

@@ -16,8 +16,7 @@ export class EmbeddingPipeline implements TextEmbedder {
 
   private hash(token: string): number {
     let h = 2166136261;
-    const limit = Math.min(token.length, 4096);
-    for (let i = 0; i < limit; i++) {
+    for (let i = 0; i < token.length; i++) {
       h ^= token.charCodeAt(i);
       h = Math.imul(h, 16777619);
     }

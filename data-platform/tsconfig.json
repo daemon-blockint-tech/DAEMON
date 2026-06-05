@@ -13,8 +13,7 @@
     "event-bus/**/*.ts",
     "migrations/**/*.ts",
     "lakehouse/**/*.ts",
-    "product-sessions/**/*.ts",
-    "mdm/**/*.ts"
+    "product-sessions/**/*.ts"
   ],
   "exclude": ["**/*.test.ts"]
 }

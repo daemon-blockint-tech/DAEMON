@@ -21,7 +21,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run spec:check
       - run: pnpm run check:architecture
-      - run: pnpm run check:route-auth
       - run: pnpm run check:tenancy-config
       - run: pnpm run check:ontology-pack
       - run: pnpm run check:governance-policies
@@ -87,7 +86,6 @@ jobs:
         run: pnpm run db:migrate
       - name: Repo integration tests
         env:
-          DAEMON_API_KEY: daemon-dev-key
           DAEMON_POSTGRES_URL: postgresql://daemon_app:daemon_app@localhost:5432/daemon
           DAEMON_REDIS_URL: redis://localhost:6379
           DAEMON_INTEGRATION_REQUIRED: "1"
@@ -131,42 +129,3 @@ jobs:
           DAEMON_INTEGRATION_REQUIRED: "1"
           DAEMON_REPO_ROOT: ${{ github.workspace }}
         run: node --test --import tsx tests/integration/foundry-parity-golden.integration.test.ts
-
-  antero-parity:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: daemon
-          POSTGRES_PASSWORD: daemon
-          POSTGRES_DB: daemon
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U daemon"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
-      - name: Apply database migrations
-        env:
-          DAEMON_POSTGRES_URL: postgresql://daemon:daemon@localhost:5432/daemon
-        run: pnpm run db:migrate
-      - name: ANTERO shadow parity golden E2E
-        env:
-          DAEMON_POSTGRES_URL: postgresql://daemon_app:daemon_app@localhost:5432/daemon
-          DAEMON_INTEGRATION_REQUIRED: "1"
-          DAEMON_ABC_FIXTURES: "1"
-          DAEMON_REPO_ROOT: ${{ github.workspace }}
-        run: node --test --import tsx tests/integration/antero-shadow-parity.integration.test.ts

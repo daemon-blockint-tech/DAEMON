@@ -52,8 +52,6 @@ describe("foundation ontology pack", () => {
       "Trip",
       "Dispatch",
       "RoutingDecision",
-      "Location",
-      "ServiceAreaCoverage",
     ]) {
       assert.ok(resolved.entityTypes.includes(p1), `missing P1 type ${p1}`);
       assert.ok(resolved.models.has(p1), `missing P1 model ${p1}`);

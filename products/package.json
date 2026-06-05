@@ -10,7 +10,6 @@
     "./analytics-workflows/report-generator.js": "./dist/analytics-workflows/report-generator.js",
     "./analytics-workflows/dashboard-builder.js": "./dist/analytics-workflows/dashboard-builder.js",
     "./analytics-workflows/lakehouse-analytics.js": "./dist/analytics-workflows/lakehouse-analytics.js",
-    "./analytics-workflows/shadow-pricing.js": "./dist/analytics-workflows/shadow-pricing.js",
     "./product-shell/product-router.js": "./dist/product-shell/product-router.js",
     "./automations/automations-workflows.js": "./dist/automations/automations-workflows.js",
     "./automations/task-orchestrator.js": "./dist/automations/task-orchestrator.js",

@@ -1,57 +1,27 @@
-use daemon_policy::{Effect, PolicyCheckRequest, PolicyEngine};
+use daemon_policy::{Effect, PolicyEngine};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
-const MAX_BODY_BYTES: usize = 64 * 1024;
-
 fn handle(mut stream: TcpStream, engine: &PolicyEngine) {
-    let mut buf = vec![0u8; MAX_BODY_BYTES];
-    let read = match stream.read(&mut buf) {
-        Ok(n) => n,
-        Err(_) => return,
-    };
-    if read == 0 {
-        let _ = write_json(&mut stream, "deny", Some("empty request"));
-        return;
-    }
-    let body = match std::str::from_utf8(&buf[..read]) {
-        Ok(s) => s,
-        Err(_) => {
-            let _ = write_json(&mut stream, "deny", Some("invalid utf-8"));
-            return;
-        }
-    };
-    let req: PolicyCheckRequest = match serde_json::from_str(body) {
-        Ok(r) => r,
-        Err(_) => {
-            let _ = write_json(&mut stream, "deny", Some("invalid json"));
-            return;
-        }
-    };
-    if req.action.is_empty() || req.resource.is_empty() {
-        let _ = write_json(&mut stream, "deny", Some("action and resource required"));
-        return;
-    }
-    let decision = engine.evaluate_request(&req);
+    let mut buf = String::new();
+    let _ = stream.read_to_string(&mut buf);
+    let req: serde_json::Value = serde_json::from_str(&buf).unwrap_or_default();
+    let action = req["action"].as_str().unwrap_or("");
+    let resource = req["resource"].as_str().unwrap_or("");
+    let decision = engine.evaluate(action, resource);
     let effect = match decision.effect {
         Effect::Allow => "allow",
         Effect::Deny => "deny",
     };
-    let _ = write_json(&mut stream, effect, decision.reason.as_deref());
-}
-
-fn write_json(stream: &mut TcpStream, effect: &str, reason: Option<&str>) -> std::io::Result<()> {
-    let body = serde_json::json!({ "effect": effect, "reason": reason });
-    writeln!(stream, "{}", body)
+    let body = serde_json::json!({ "effect": effect, "reason": decision.reason });
+    let _ = writeln!(stream, "{}", body);
 }
 
 fn main() {
-    let yaml = std::env::var("POLICY_RULES_YAML").unwrap_or_else(|_| String::new());
-    let engine = if yaml.trim().is_empty() {
-        PolicyEngine::new()
-    } else {
-        PolicyEngine::load_yaml(&yaml).expect("policy rules")
-    };
+    let yaml = std::env::var("POLICY_RULES_YAML").unwrap_or_else(|_| {
+        "- action: read\n  resource: entity\n  effect: allow\n- action: write\n  resource: entity\n  effect: allow\n".into()
+    });
+    let engine = PolicyEngine::load_yaml(&yaml).expect("policy rules");
     let addr = std::env::var("POLICY_ENGINE_ADDR").unwrap_or_else(|_| "127.0.0.1:8082".into());
     let listener = TcpListener::bind(&addr).expect("bind");
     eprintln!("policy-server on {}", addr);

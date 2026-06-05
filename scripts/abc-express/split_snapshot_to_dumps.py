@@ -6,17 +6,14 @@ import json
 import sys
 from pathlib import Path
 
-from _path_utils import resolve_under, safe_table_name
-
-SCRIPT_DIR = Path(__file__).parent
-DUMP_DIR = SCRIPT_DIR / "dumps"
+DUMP_DIR = Path(__file__).parent / "dumps"
 
 
 def main() -> int:
     if len(sys.argv) != 2:
         print("usage: split_snapshot_to_dumps.py <snapshot.json>", file=sys.stderr)
         return 1
-    snapshot_path = resolve_under(SCRIPT_DIR, sys.argv[1])
+    snapshot_path = Path(sys.argv[1])
     raw = json.loads(snapshot_path.read_text())
     if isinstance(raw, list) and raw and "snapshot" in raw[0]:
         data = raw[0]["snapshot"]
@@ -33,7 +30,6 @@ def main() -> int:
     for table, rows in sorted(data.items()):
         if not isinstance(rows, list):
             rows = []
-        safe_table_name(str(table))
         out = DUMP_DIR / f"{table}.json"
         out.write_text(json.dumps(rows, default=str, indent=2))
         print(f"{table}: {len(rows)}")

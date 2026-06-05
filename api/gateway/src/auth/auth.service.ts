@@ -1,5 +1,4 @@
 import { Injectable } from "@nestjs/common";
-import * as jose from "jose";
 import {
   DaemonError,
   ErrorCodes,
@@ -21,20 +20,23 @@ interface ApiKeyRecord {
 }
 
 /**
- * Resolves a {@link DaemonSession} from API key, OIDC JWT (prod), unsigned JWT (dev),
- * or internal `x-daemon-session` header.
+ * Dev-grade authentication: resolves a {@link DaemonSession} from one of
+ * three credential carriers, in priority order:
+ *
+ * 1. `x-daemon-session` — a pre-issued session JSON (used by internal services).
+ * 2. `x-api-key` — matched against `DAEMON_API_KEYS` (or a built-in dev key).
+ * 3. `authorization: Bearer <jwt>` — decoded (unverified) only in `dev` mode.
+ *
+ * Production OIDC/JWKS verification is intentionally out of scope per the plan.
  */
 @Injectable()
 export class AuthService {
   private readonly apiKeys: ReadonlyMap<string, ApiKeyRecord>;
   private readonly mode: string;
-  private readonly env: NodeJS.ProcessEnv;
-  private jwks?: jose.JWTVerifyGetKey;
 
   constructor(env: NodeJS.ProcessEnv) {
-    this.env = env;
-    this.mode = AuthService.resolveAuthMode(env);
-    this.apiKeys = AuthService.parseApiKeys(env.DAEMON_API_KEYS, this.mode, env);
+    this.mode = env.DAEMON_AUTH_MODE ?? "dev";
+    this.apiKeys = AuthService.parseApiKeys(env.DAEMON_API_KEYS, this.mode);
   }
 
   /** Nest and tests should use this; avoids DI on `process.env`. */
@@ -42,40 +44,10 @@ export class AuthService {
     return new AuthService(env);
   }
 
-  static resolveAuthMode(env: NodeJS.ProcessEnv): string {
-    if (env.DAEMON_AUTH_MODE) {
-      return env.DAEMON_AUTH_MODE;
-    }
-    return env.NODE_ENV === "production" ? "prod" : "dev";
-  }
-
-  /** Refuse boot in production without explicit API keys. */
-  static assertBootConfig(env: NodeJS.ProcessEnv = process.env): void {
-    const mode = AuthService.resolveAuthMode(env);
-    const nodeEnv = env.NODE_ENV ?? "development";
-    if (mode === "prod" || nodeEnv === "production") {
-      if (!env.DAEMON_API_KEYS?.trim()) {
-        throw new Error("DAEMON_API_KEYS must be set in production auth mode");
-      }
-    }
-    if (mode === "dev" && nodeEnv !== "production") {
-      console.warn(
-        "[daemon-auth] dev mode: unsigned JWT and default dev key may be active",
-      );
-    }
-  }
-
   /** Resolves a session, or `null` when no credential is present. Throws on malformed credentials. */
-  async resolveSession(headers: AuthHeaders): Promise<DaemonSession | null> {
+  resolveSession(headers: AuthHeaders): DaemonSession | null {
     const raw = headers["x-daemon-session"];
     if (raw) {
-      if (this.mode === "prod" || this.env.NODE_ENV === "production") {
-        throw new DaemonError(
-          ErrorCodes.UNAUTHORIZED,
-          "x-daemon-session is not accepted in production",
-          401,
-        );
-      }
       return this.fromSessionHeader(raw);
     }
 
@@ -116,64 +88,26 @@ export class AuthService {
     };
   }
 
-  private async fromBearer(authorization: string): Promise<DaemonSession> {
+  private fromBearer(authorization: string): DaemonSession {
     const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
     if (!match) {
       throw new DaemonError(ErrorCodes.UNAUTHORIZED, "invalid authorization scheme", 401);
     }
-    const token = match[1];
-    if (this.mode === "dev" && !this.env.DAEMON_OIDC_JWKS_URL) {
-      return this.fromUnsignedJwtDev(token);
-    }
-    return this.fromVerifiedJwt(token);
-  }
-
-  private fromUnsignedJwtDev(token: string): DaemonSession {
-    const claims = AuthService.decodeJwtClaims(token);
-    return {
-      sessionId: `jwt:${String(claims.sub ?? "anonymous")}` as SessionId,
-      subjectId: String(claims.sub ?? "anonymous"),
-      tenantId: String(claims.tenant ?? claims.tid ?? "inst-alpha"),
-      roles: AuthService.coerceRoles(claims.roles),
-      issuedAt: new Date().toISOString(),
-    };
-  }
-
-  private getJwks(): jose.JWTVerifyGetKey {
-    const url = this.env.DAEMON_OIDC_JWKS_URL;
-    if (!url) {
+    if (this.mode !== "dev") {
       throw new DaemonError(
         ErrorCodes.UNAUTHORIZED,
-        "OIDC JWKS URL not configured",
+        "bearer tokens require dev auth mode",
         401,
       );
     }
-    if (!this.jwks) {
-      this.jwks = jose.createRemoteJWKSet(new URL(url));
-    }
-    return this.jwks;
-  }
-
-  private async fromVerifiedJwt(token: string): Promise<DaemonSession> {
-    const issuer = this.env.DAEMON_OIDC_ISSUER;
-    const audience = this.env.DAEMON_OIDC_AUDIENCE;
-    try {
-      const { payload } = await jose.jwtVerify(token, this.getJwks(), {
-        issuer: issuer || undefined,
-        audience: audience || undefined,
-      });
-      return {
-        sessionId: `jwt:${String(payload.sub ?? "anonymous")}` as SessionId,
-        subjectId: String(payload.sub ?? "anonymous"),
-        tenantId: String(
-          payload.tenant ?? payload.tid ?? payload["https://daemon/tenant"] ?? "default",
-        ),
-        roles: AuthService.coerceRoles(payload.roles ?? payload["https://daemon/roles"]),
-        issuedAt: new Date().toISOString(),
-      };
-    } catch {
-      throw new DaemonError(ErrorCodes.UNAUTHORIZED, "invalid or expired jwt", 401);
-    }
+    const claims = AuthService.decodeJwtClaims(match[1]);
+    return {
+      sessionId: `jwt:${String(claims.sub ?? "anonymous")}` as SessionId,
+      subjectId: String(claims.sub ?? "anonymous"),
+      tenantId: String(claims.tenant ?? claims.tid ?? "default"),
+      roles: AuthService.coerceRoles(claims.roles),
+      issuedAt: new Date().toISOString(),
+    };
   }
 
   private static decodeJwtClaims(token: string): Record<string, unknown> {
@@ -231,7 +165,6 @@ export class AuthService {
   private static parseApiKeys(
     raw: string | undefined,
     mode: string,
-    env: NodeJS.ProcessEnv,
   ): Map<string, ApiKeyRecord> {
     const keys = new Map<string, ApiKeyRecord>();
     if (raw) {
@@ -249,13 +182,11 @@ export class AuthService {
         });
       }
     }
-    const nodeEnv = env.NODE_ENV ?? "development";
-    const devKey = env.DAEMON_API_KEY?.trim();
-    if (keys.size === 0 && mode === "dev" && nodeEnv !== "production" && devKey) {
-      keys.set(devKey, {
-        key: devKey,
+    if (keys.size === 0 && mode === "dev") {
+      keys.set("daemon-dev-key", {
+        key: "daemon-dev-key",
         subjectId: "dev",
-        tenantId: "inst-alpha",
+        tenantId: "default",
         roles: ["admin"],
       });
     }

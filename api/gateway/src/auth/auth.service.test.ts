@@ -1,58 +1,69 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { DaemonError } from "@daemon/platform-types";
 import { AuthService } from "./auth.service";
 
-test("assertBootConfig throws in production without API keys", () => {
-  assert.throws(
-    () =>
-      AuthService.assertBootConfig({
-        NODE_ENV: "production",
-        DAEMON_AUTH_MODE: "prod",
-        DAEMON_API_KEYS: "",
-      }),
-    /DAEMON_API_KEYS must be set/,
-  );
+test("returns null when no credential is supplied", () => {
+  const auth = AuthService.create({} as NodeJS.ProcessEnv);
+  assert.equal(auth.resolveSession({}), null);
 });
 
-test("assertBootConfig allows production with explicit API keys", () => {
-  assert.doesNotThrow(() =>
-    AuthService.assertBootConfig({
-      NODE_ENV: "production",
-      DAEMON_AUTH_MODE: "prod",
-      DAEMON_API_KEYS: "k1:u1:inst-alpha:admin",
-    }),
-  );
-});
-
-test("dev mode injects DAEMON_API_KEY when NODE_ENV is not production", async () => {
-  const devKey = "test-dev-api-key";
-  const svc = AuthService.create({
-    NODE_ENV: "development",
-    DAEMON_AUTH_MODE: "dev",
-    DAEMON_API_KEY: devKey,
-  });
-  const session = await svc.resolveSession({ "x-api-key": devKey });
+test("resolves the built-in dev api key in dev mode", () => {
+  const auth = AuthService.create({ DAEMON_AUTH_MODE: "dev" } as NodeJS.ProcessEnv);
+  const session = auth.resolveSession({ "x-api-key": "daemon-dev-key" });
   assert.ok(session);
-  assert.equal(session?.tenantId, "inst-alpha");
-  assert.ok(session?.roles.includes("admin"));
+  assert.equal(session!.subjectId, "dev");
+  assert.deepEqual(session!.roles, ["admin"]);
 });
 
-test("rejects x-daemon-session in production", async () => {
-  const svc = AuthService.create({
-    NODE_ENV: "production",
+test("rejects an unknown api key", () => {
+  const auth = AuthService.create({ DAEMON_AUTH_MODE: "dev" } as NodeJS.ProcessEnv);
+  assert.throws(() => auth.resolveSession({ "x-api-key": "nope" }), DaemonError);
+});
+
+test("parses configured api keys with roles", () => {
+  const auth = AuthService.create({
     DAEMON_AUTH_MODE: "prod",
-    DAEMON_API_KEYS: "k1:u1:inst-alpha:admin",
+    DAEMON_API_KEYS: "svc-key:svc-1:tenant-9:read|write",
+  } as NodeJS.ProcessEnv);
+  const session = auth.resolveSession({ "x-api-key": "svc-key" });
+  assert.equal(session!.tenantId, "tenant-9");
+  assert.deepEqual(session!.roles, ["read", "write"]);
+});
+
+test("decodes a bearer jwt in dev mode", () => {
+  const auth = AuthService.create({ DAEMON_AUTH_MODE: "dev" } as NodeJS.ProcessEnv);
+  const payload = Buffer.from(
+    JSON.stringify({ sub: "alice", tenant: "acme", roles: ["editor"] }),
+  ).toString("base64url");
+  const token = `h.${payload}.sig`;
+  const session = auth.resolveSession({ authorization: `Bearer ${token}` });
+  assert.equal(session!.subjectId, "alice");
+  assert.equal(session!.tenantId, "acme");
+  assert.deepEqual(session!.roles, ["editor"]);
+});
+
+test("rejects bearer tokens outside dev mode", () => {
+  const auth = AuthService.create({ DAEMON_AUTH_MODE: "prod" } as NodeJS.ProcessEnv);
+  assert.throws(
+    () => auth.resolveSession({ authorization: "Bearer a.b.c" }),
+    DaemonError,
+  );
+});
+
+test("coerces a pre-issued session header", () => {
+  const auth = AuthService.create({ DAEMON_AUTH_MODE: "dev" } as NodeJS.ProcessEnv);
+  const session = auth.resolveSession({
+    "x-daemon-session": JSON.stringify({ subjectId: "bob", tenantId: "t1" }),
   });
-  await assert.rejects(
-    () =>
-      svc.resolveSession({
-        "x-daemon-session": JSON.stringify({
-          sessionId: "s1",
-          subjectId: "u1",
-          tenantId: "inst-alpha",
-          roles: ["admin"],
-        }),
-      }),
-    /x-daemon-session is not accepted/,
+  assert.equal(session!.subjectId, "bob");
+  assert.equal(session!.sessionId, "session:bob");
+});
+
+test("rejects a malformed session header", () => {
+  const auth = AuthService.create({ DAEMON_AUTH_MODE: "dev" } as NodeJS.ProcessEnv);
+  assert.throws(
+    () => auth.resolveSession({ "x-daemon-session": "{not json" }),
+    DaemonError,
   );
 });

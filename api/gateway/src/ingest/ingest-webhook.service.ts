@@ -1,8 +1,8 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { DaemonError, ErrorCodes } from "@daemon/platform-types";
 import type { TenantContextHeaders } from "../platform/tenant-context";
 import { IngestService, type IngestRecord } from "./ingest.service";
-import { verifyWebhookHmacSignature } from "./webhook-hmac";
 
 @Injectable()
 export class IngestWebhookService {
@@ -12,7 +12,22 @@ export class IngestWebhookService {
     rawBody: string,
     signatureHeader: string | undefined,
   ): void {
-    verifyWebhookHmacSignature(rawBody, signatureHeader);
+    const secret = process.env.DAEMON_WEBHOOK_HMAC_SECRET;
+    if (!secret) return;
+    if (!signatureHeader) {
+      throw new DaemonError(
+        ErrorCodes.UNAUTHORIZED,
+        "missing X-Daemon-Signature",
+        401,
+      );
+    }
+    const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+    const provided = signatureHeader.replace(/^sha256=/, "");
+    const a = Buffer.from(expected, "utf8");
+    const b = Buffer.from(provided, "utf8");
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      throw new DaemonError(ErrorCodes.UNAUTHORIZED, "invalid webhook signature", 401);
+    }
   }
 
   normalizePayload(body: unknown): IngestRecord[] {

@@ -6,24 +6,12 @@
  *   node scripts/generate-pack-sdk.mjs [--pack foundation] [--out packages/sdk/src/generated]
  */
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
-
-const PACK_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/i;
-
-function assertUnderRoot(targetPath) {
-  const resolved = resolve(targetPath);
-  if (resolved === root) return resolved;
-  const prefix = root.endsWith(sep) ? root : root + sep;
-  if (!resolved.startsWith(prefix)) {
-    throw new Error(`path escapes repository root: ${targetPath}`);
-  }
-  return resolved;
-}
 
 function parseArgs(argv) {
   let packId = "foundation";
@@ -32,10 +20,7 @@ function parseArgs(argv) {
     if (argv[i] === "--pack" && argv[i + 1]) packId = argv[++i];
     else if (argv[i] === "--out" && argv[i + 1]) outDir = resolve(root, argv[++i]);
   }
-  if (!PACK_ID_PATTERN.test(packId)) {
-    throw new Error(`invalid pack id: ${packId}`);
-  }
-  return { packId, outDir: assertUnderRoot(outDir) };
+  return { packId, outDir };
 }
 
 function tsType(yamlType) {
@@ -54,14 +39,13 @@ function tsType(yamlType) {
 }
 
 function loadEntityDefs(packDir) {
-  const safePackDir = assertUnderRoot(packDir);
-  const entitiesDir = assertUnderRoot(join(safePackDir, "entities"));
+  const entitiesDir = join(packDir, "entities");
   const files = readdirSync(entitiesDir)
     .filter((f) => f.endsWith(".yaml"))
     .sort();
   const defs = [];
   for (const file of files) {
-    const raw = parseYaml(readFileSync(assertUnderRoot(join(entitiesDir, file)), "utf8"));
+    const raw = parseYaml(readFileSync(join(entitiesDir, file), "utf8"));
     const entityType = raw.entityType;
     const fields = raw.fields ?? [];
     defs.push({ entityType, fields });
@@ -71,9 +55,7 @@ function loadEntityDefs(packDir) {
 }
 
 function loadPackMeta(packDir) {
-  return parseYaml(
-    readFileSync(assertUnderRoot(join(assertUnderRoot(packDir), "pack.yaml")), "utf8"),
-  );
+  return parseYaml(readFileSync(join(packDir, "pack.yaml"), "utf8"));
 }
 
 function loadActions(repoRoot) {
@@ -173,7 +155,7 @@ function emitClient(packId, defs) {
 
 function main() {
   const { packId, outDir } = parseArgs(process.argv.slice(2));
-  const packDir = assertUnderRoot(join(root, "configs/ontology/packs", packId));
+  const packDir = join(root, "configs/ontology/packs", packId);
   if (!existsSync(packDir)) {
     console.error(`Pack not found: ${packDir}`);
     process.exit(1);
@@ -182,13 +164,13 @@ function main() {
   const ontologyId = meta.ontologyId ?? packId;
   const defs = loadEntityDefs(packDir);
   const actions = loadActions(root);
-  const packOut = assertUnderRoot(join(outDir, packId));
+  const packOut = join(outDir, packId);
   mkdirSync(packOut, { recursive: true });
-  writeFileSync(assertUnderRoot(join(packOut, "entities.ts")), emitEntities(ontologyId, defs));
-  writeFileSync(assertUnderRoot(join(packOut, "actions.ts")), emitActions(actions));
-  writeFileSync(assertUnderRoot(join(packOut, "client.ts")), emitClient(ontologyId, defs));
+  writeFileSync(join(packOut, "entities.ts"), emitEntities(ontologyId, defs));
+  writeFileSync(join(packOut, "actions.ts"), emitActions(actions));
+  writeFileSync(join(packOut, "client.ts"), emitClient(ontologyId, defs));
   writeFileSync(
-    assertUnderRoot(join(packOut, "index.ts")),
+    join(packOut, "index.ts"),
     [
       "/** Generated pack barrel — do not edit by hand. */",
       'export * from "./entities.js";',

@@ -12,7 +12,3 @@ thiserror = { workspace = true }
 [[bin]]
 name = "policy-server"
 path = "src/bin/policy-server.rs"
-
-[[bin]]
-name = "policy-http-server"
-path = "src/bin/policy-http-server.rs"

@@ -12,26 +12,8 @@ export function requiresUpstreamPolicyDecision(
   action: string,
   resource: string,
 ): boolean {
-  if (action === "write" || action === "delete") {
-    return true;
-  }
-  if (action === "read") {
-    return (
-      resource === "entity" ||
-      resource === "lakehouse" ||
-      resource.startsWith("lakehouse") ||
-      resource === "ingest-job"
-    );
-  }
-  if (action === "query") {
-    return (
-      resource === "ontology-nl" ||
-      resource === "ontology-search" ||
-      resource === "analytics"
-    );
-  }
-  if (action === "ingest") {
-    return resource.startsWith("ingest");
-  }
-  return false;
+  return (
+    action === "write" ||
+    (action === "query" && resource === "ontology-nl")
+  );
 }

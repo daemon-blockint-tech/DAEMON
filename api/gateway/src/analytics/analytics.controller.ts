@@ -1,22 +1,17 @@
-import { Controller, Get, Query } from "@nestjs/common";
-import { Protected } from "../auth/protected.decorator";
-import { PolicyCheck } from "../auth/policy-check.decorator";
-import { DaemonScope } from "../auth/daemon-scope.decorator";
-import type { TenantContextHeaders } from "../platform/tenant-context";
+import { Controller, Get, Headers, Query } from "@nestjs/common";
 import { AnalyticsService } from "./analytics.service";
 
 /**
  * Analytics workflows over the ontology registry (search, reports, dashboards).
+ * Policy `query:analytics` is enforced inside {@link AnalyticsWorkflows}.
  */
 @Controller("v1/analytics")
 export class AnalyticsController {
   constructor(private readonly analytics: AnalyticsService) {}
 
   @Get("search")
-  @Protected()
-  @PolicyCheck("query", "analytics")
   searchReport(
-    @DaemonScope() ctx: TenantContextHeaders,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Query("q") q: string,
     @Query("ontologyId") ontologyId?: string,
     @Query("limit") limit?: string,
@@ -24,7 +19,7 @@ export class AnalyticsController {
     @Query("propertyValue") propertyValue?: string,
     @Query("reportTitle") reportTitle?: string,
   ) {
-    return this.analytics.searchReport(ctx, {
+    return this.analytics.searchReport(headers, {
       q: q ?? "",
       ontologyId,
       limit: limit ? Number(limit) : undefined,
@@ -35,17 +30,15 @@ export class AnalyticsController {
   }
 
   @Get("entities")
-  @Protected()
-  @PolicyCheck("query", "analytics")
   searchEntities(
-    @DaemonScope() ctx: TenantContextHeaders,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Query("q") q: string,
     @Query("ontologyId") ontologyId?: string,
     @Query("limit") limit?: string,
     @Query("property") property?: string,
     @Query("propertyValue") propertyValue?: string,
   ) {
-    return this.analytics.searchEntities(ctx, {
+    return this.analytics.searchEntities(headers, {
       q: q ?? "",
       ontologyId,
       limit: limit ? Number(limit) : undefined,
@@ -55,24 +48,20 @@ export class AnalyticsController {
   }
 
   @Get("dashboard")
-  @Protected()
-  @PolicyCheck("query", "analytics")
   dashboard(
-    @DaemonScope() ctx: TenantContextHeaders,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Query("ontologyId") ontologyId?: string,
     @Query("breakdownField") breakdownField?: string,
   ) {
-    return this.analytics.dashboard(ctx, { ontologyId, breakdownField });
+    return this.analytics.dashboard(headers, { ontologyId, breakdownField });
   }
 
-  @Get("lakehouse")
-  @Protected()
-  @PolicyCheck("query", "analytics")
+  @Get("lakehouse-summary")
   lakehouseSummary(
-    @DaemonScope() ctx: TenantContextHeaders,
+    @Headers() headers: Record<string, string | string[] | undefined>,
     @Query("since") since?: string,
     @Query("reportTitle") reportTitle?: string,
   ) {
-    return this.analytics.lakehouseSummary(ctx, { since, reportTitle });
+    return this.analytics.lakehouseSummary(headers, { since, reportTitle });
   }
 }

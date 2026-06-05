@@ -8,6 +8,7 @@ import type { AnalyticsReport } from "@daemon/products/analytics-workflows/repor
 import type { DashboardSpec } from "@daemon/products/analytics-workflows/dashboard-builder.js";
 import type { EntityRecord } from "@daemon/ontology";
 import { DaemonRuntime } from "../platform/daemon-runtime";
+import { TenantContextService } from "../platform/tenant-context";
 import type { TenantContextHeaders } from "../platform/tenant-context";
 
 export interface AnalyticsSearchQuery {
@@ -26,7 +27,10 @@ export interface AnalyticsDashboardQuery {
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private readonly runtime: DaemonRuntime) {}
+  constructor(
+    private readonly runtime: DaemonRuntime,
+    private readonly tenantContext: TenantContextService,
+  ) {}
 
   private flows(ctx: TenantContextHeaders): AnalyticsWorkflows {
     const product = ProductRuntime.fromGatewayBridge({
@@ -41,9 +45,10 @@ export class AnalyticsService {
   }
 
   async searchReport(
-    ctx: TenantContextHeaders,
+    headers: Record<string, string | string[] | undefined>,
     query: AnalyticsSearchQuery,
   ): Promise<AnalyticsReport> {
+    const ctx = this.tenantContext.resolve(headers);
     const ont = ontologyId(query.ontologyId ?? defaultOntology());
     return await this.flows(ctx).searchAndReport({
       query: query.q,
@@ -56,9 +61,10 @@ export class AnalyticsService {
   }
 
   async searchEntities(
-    ctx: TenantContextHeaders,
+    headers: Record<string, string | string[] | undefined>,
     query: AnalyticsSearchQuery,
   ): Promise<EntityRecord[]> {
+    const ctx = this.tenantContext.resolve(headers);
     const ont = ontologyId(query.ontologyId ?? defaultOntology());
     return await this.flows(ctx).search({
       query: query.q,
@@ -70,9 +76,10 @@ export class AnalyticsService {
   }
 
   dashboard(
-    ctx: TenantContextHeaders,
+    headers: Record<string, string | string[] | undefined>,
     query: AnalyticsDashboardQuery,
   ): DashboardSpec {
+    const ctx = this.tenantContext.resolve(headers);
     const ont = ontologyId(query.ontologyId ?? defaultOntology());
     return this.flows(ctx).buildDashboard(ont, {
       breakdownField: query.breakdownField,
@@ -80,9 +87,10 @@ export class AnalyticsService {
   }
 
   async lakehouseSummary(
-    ctx: TenantContextHeaders,
+    headers: Record<string, string | string[] | undefined>,
     query: { since?: string; reportTitle?: string },
   ) {
+    const ctx = this.tenantContext.resolve(headers);
     const product = ProductRuntime.fromGatewayBridge({
       reads: this.runtime.reads,
       writes: this.runtime.writes,

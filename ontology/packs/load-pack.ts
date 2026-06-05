@@ -1,15 +1,8 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { configsPath } from "../paths.js";
 import { assertValidExtensionPackId } from "./extension-pack-id.js";
-import {
-  assertPackDirectoryUnderConfigs,
-  assertSafeOntologyTypeName,
-  assertSafePackYamlFilename,
-  resolvePackManifestPath,
-  resolvePackTypeYamlPath,
-} from "./safe-pack-path.js";
-import { resolveWithinDirectory } from "@daemon/context-ports";
 import { EntityModel, type EntityModelDefinition } from "../models/entities/entity-model.js";
 import {
   RelationModel,
@@ -42,10 +35,7 @@ export function foundationPackRoot(): string {
 
 export function extensionPackRoot(extensionId: string): string {
   assertValidExtensionPackId(extensionId);
-  return resolveWithinDirectory(
-    configsPath("ontology", "packs", "extensions"),
-    extensionId,
-  );
+  return configsPath("ontology", "packs", "extensions", extensionId);
 }
 
 export function loadExtensionPack(extensionId: string): LoadedOntologyPack {
@@ -57,16 +47,10 @@ function loadEntityModels(
   packDir: string,
   manifest: PackManifest,
 ): Map<string, EntityModel> {
-  const entitiesDir = resolveWithinDirectory(packDir, "entities");
+  const entitiesDir = join(packDir, "entities");
   const models = new Map<string, EntityModel>();
   for (const entityType of manifest.entityTypes) {
-    assertSafeOntologyTypeName("entity", entityType);
-    const entityPath = resolvePackTypeYamlPath(
-      packDir,
-      "entities",
-      entityType,
-      "entity",
-    );
+    const entityPath = join(entitiesDir, `${entityType}.yaml`);
     if (!existsSync(entityPath)) {
       throw new Error(`entity definition missing: ${entityPath}`);
     }
@@ -82,7 +66,7 @@ function loadEntityModels(
   }
   const onDisk = readdirSync(entitiesDir)
     .filter((f) => f.endsWith(".yaml"))
-    .map((f) => assertSafePackYamlFilename(f));
+    .map((f) => f.replace(/\.yaml$/, ""));
   for (const name of onDisk) {
     if (!manifest.entityTypes.includes(name)) {
       throw new Error(
@@ -99,7 +83,7 @@ function loadRelationModels(
 ): Map<string, RelationModel> {
   const relations = new Map<string, RelationModel>();
   const relationTypes = manifest.relationTypes ?? [];
-  const relationsDir = resolveWithinDirectory(packDir, "relations");
+  const relationsDir = join(packDir, "relations");
   if (!existsSync(relationsDir) && relationTypes.length > 0) {
     throw new Error(`relations directory missing: ${relationsDir}`);
   }
@@ -107,13 +91,7 @@ function loadRelationModels(
     return relations;
   }
   for (const relationType of relationTypes) {
-    assertSafeOntologyTypeName("relation", relationType);
-    const relationPath = resolvePackTypeYamlPath(
-      packDir,
-      "relations",
-      relationType,
-      "relation",
-    );
+    const relationPath = join(relationsDir, `${relationType}.yaml`);
     if (!existsSync(relationPath)) {
       throw new Error(`relation definition missing: ${relationPath}`);
     }
@@ -124,7 +102,7 @@ function loadRelationModels(
   }
   const onDisk = readdirSync(relationsDir)
     .filter((f) => f.endsWith(".yaml"))
-    .map((f) => assertSafePackYamlFilename(f));
+    .map((f) => f.replace(/\.yaml$/, ""));
   for (const name of onDisk) {
     if (!relationTypes.includes(name)) {
       throw new Error(
@@ -141,7 +119,7 @@ function loadJunctionModels(
 ): Map<string, JunctionModel> {
   const junctions = new Map<string, JunctionModel>();
   const junctionTypes = manifest.junctionTypes ?? [];
-  const junctionsDir = resolveWithinDirectory(packDir, "junctions");
+  const junctionsDir = join(packDir, "junctions");
   if (!existsSync(junctionsDir) && junctionTypes.length > 0) {
     throw new Error(`junctions directory missing: ${junctionsDir}`);
   }
@@ -149,13 +127,7 @@ function loadJunctionModels(
     return junctions;
   }
   for (const junctionType of junctionTypes) {
-    assertSafeOntologyTypeName("junction", junctionType);
-    const junctionPath = resolvePackTypeYamlPath(
-      packDir,
-      "junctions",
-      junctionType,
-      "junction",
-    );
+    const junctionPath = join(junctionsDir, `${junctionType}.yaml`);
     if (!existsSync(junctionPath)) {
       throw new Error(`junction definition missing: ${junctionPath}`);
     }
@@ -169,7 +141,7 @@ function loadJunctionModels(
   }
   const onDisk = readdirSync(junctionsDir)
     .filter((f) => f.endsWith(".yaml"))
-    .map((f) => assertSafePackYamlFilename(f));
+    .map((f) => f.replace(/\.yaml$/, ""));
   for (const name of onDisk) {
     if (!junctionTypes.includes(name)) {
       throw new Error(
@@ -181,8 +153,7 @@ function loadJunctionModels(
 }
 
 export function loadPackFromDirectory(packDir: string): LoadedOntologyPack {
-  assertPackDirectoryUnderConfigs(packDir);
-  const manifestPath = resolvePackManifestPath(packDir);
+  const manifestPath = join(packDir, "pack.yaml");
   if (!existsSync(manifestPath)) {
     throw new Error(`pack manifest missing: ${manifestPath}`);
   }

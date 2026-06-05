@@ -1,20 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { createGatewayTestApp, devApiKey } from "../helpers/gateway-test-app.js";
-import { syntheticTestApiKey } from "../helpers/test-api-keys.js";
+import { createGatewayTestApp, DEV_API_KEY } from "../helpers/gateway-test-app.js";
 import { startMockIngestServer } from "../helpers/mock-ingest-server.js";
 
 const FOUNDATION = "foundation";
 const ENT = "ent-http-1";
 
-function authHeaders(
-  extra: Record<string, string> = {},
-  apiKey = devApiKey(),
-): Record<string, string> {
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return {
     "content-type": "application/json",
-    "x-api-key": apiKey,
+    "x-api-key": DEV_API_KEY,
     ...extra,
   };
 }
@@ -169,28 +165,22 @@ describe("gateway HTTP", () => {
   });
 
   it("isolates entities per tenant header", async () => {
-    const alphaKey = devApiKey();
-    const betaKey = syntheticTestApiKey("beta");
     const { baseUrl, close } = await createGatewayTestApp({
       DAEMON_INGEST_SKIP_UPSTREAM: "1",
       DAEMON_AUTH_MODE: "dev",
-      DAEMON_API_KEYS: `${alphaKey}:dev:inst-alpha:admin,${betaKey}:dev:ent-beta:admin`,
     });
     const sharedId = "shared-tenant-ent";
     try {
-      for (const [tenant, name, apiKey] of [
-        ["inst-alpha", "Alpha Party", alphaKey],
-        ["ent-beta", "Beta Party", betaKey],
+      for (const [tenant, name] of [
+        ["inst-alpha", "Alpha Party"],
+        ["ent-beta", "Beta Party"],
       ] as const) {
         const res = await fetch(`${baseUrl}/v1/ingest/records`, {
           method: "POST",
-          headers: authHeaders(
-            {
-              "x-daemon-tenant": tenant,
-              "x-daemon-domain": "foundation",
-            },
-            apiKey,
-          ),
+          headers: authHeaders({
+            "x-daemon-tenant": tenant,
+            "x-daemon-domain": "foundation",
+          }),
           body: JSON.stringify({
             sourceId: tenant,
             records: [
@@ -222,13 +212,10 @@ describe("gateway HTTP", () => {
       const betaRead = await fetch(
         `${baseUrl}/v1/read/entities/${sharedId}?ontologyId=${FOUNDATION}`,
         {
-          headers: authHeaders(
-            {
-              "x-daemon-tenant": "ent-beta",
-              "x-daemon-domain": "foundation",
-            },
-            betaKey,
-          ),
+          headers: authHeaders({
+            "x-daemon-tenant": "ent-beta",
+            "x-daemon-domain": "foundation",
+          }),
         },
       );
       assert.equal(betaRead.status, 200);
@@ -248,7 +235,7 @@ describe("gateway HTTP", () => {
       const res = await fetch(`${baseUrl}/v1/ingest/records`, {
         method: "POST",
         headers: authHeaders({
-          "x-daemon-tenant": "inst-alpha",
+          "x-daemon-tenant": "default",
           "x-daemon-domain": "no-such-domain",
         }),
         body: JSON.stringify({
@@ -300,22 +287,17 @@ describe("gateway HTTP", () => {
   });
 
   it("ingests logistics-commercial P1 entities on logistics domain", async () => {
-    const logisticsKey = syntheticTestApiKey("logistics");
     const { baseUrl, close } = await createGatewayTestApp({
       DAEMON_INGEST_SKIP_UPSTREAM: "1",
       DAEMON_AUTH_MODE: "dev",
-      DAEMON_API_KEYS: `${logisticsKey}:dev:logistics-pilot:admin`,
     });
     try {
       const res = await fetch(`${baseUrl}/v1/ingest/records`, {
         method: "POST",
-        headers: authHeaders(
-          {
-            "x-daemon-tenant": "logistics-pilot",
-            "x-daemon-domain": "logistics",
-          },
-          logisticsKey,
-        ),
+        headers: authHeaders({
+          "x-daemon-tenant": "logistics-pilot",
+          "x-daemon-domain": "logistics",
+        }),
         body: JSON.stringify({
           sourceId: "logistics-p1",
           records: [
@@ -358,13 +340,10 @@ describe("gateway HTTP", () => {
       const readLead = await fetch(
         `${baseUrl}/v1/read/entities/log-lead-1?ontologyId=${FOUNDATION}`,
         {
-          headers: authHeaders(
-            {
-              "x-daemon-tenant": "logistics-pilot",
-              "x-daemon-domain": "logistics",
-            },
-            logisticsKey,
-          ),
+          headers: authHeaders({
+            "x-daemon-tenant": "logistics-pilot",
+            "x-daemon-domain": "logistics",
+          }),
         },
       );
       assert.equal(readLead.status, 200);
@@ -376,22 +355,17 @@ describe("gateway HTTP", () => {
   });
 
   it("ingests logistics-commercial P0 entities on logistics domain", async () => {
-    const logisticsKey = syntheticTestApiKey("logistics");
     const { baseUrl, close } = await createGatewayTestApp({
       DAEMON_INGEST_SKIP_UPSTREAM: "1",
       DAEMON_AUTH_MODE: "dev",
-      DAEMON_API_KEYS: `${logisticsKey}:dev:logistics-pilot:admin`,
     });
     try {
       const res = await fetch(`${baseUrl}/v1/ingest/records`, {
         method: "POST",
-        headers: authHeaders(
-          {
-            "x-daemon-tenant": "logistics-pilot",
-            "x-daemon-domain": "logistics",
-          },
-          logisticsKey,
-        ),
+        headers: authHeaders({
+          "x-daemon-tenant": "logistics-pilot",
+          "x-daemon-domain": "logistics",
+        }),
         body: JSON.stringify({
           sourceId: "logistics-p0",
           records: [
@@ -433,13 +407,10 @@ describe("gateway HTTP", () => {
       const readShip = await fetch(
         `${baseUrl}/v1/read/entities/log-ship-1?ontologyId=${FOUNDATION}`,
         {
-          headers: authHeaders(
-            {
-              "x-daemon-tenant": "logistics-pilot",
-              "x-daemon-domain": "logistics",
-            },
-            logisticsKey,
-          ),
+          headers: authHeaders({
+            "x-daemon-tenant": "logistics-pilot",
+            "x-daemon-domain": "logistics",
+          }),
         },
       );
       assert.equal(readShip.status, 200);

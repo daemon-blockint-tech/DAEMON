@@ -2,15 +2,6 @@ import type { EntityId, OntologyId } from "@daemon/platform-types";
 import { defaultOntology, defaultScope, type EntityRecord } from "@daemon/ontology";
 import type { ProductRuntime } from "../shared/product-runtime.js";
 
-export const MAX_ANALYTICS_QUERY_LENGTH = 256;
-
-export function normalizeSearchQuery(raw: unknown, maxLen = MAX_ANALYTICS_QUERY_LENGTH): string {
-  if (typeof raw !== "string") return "";
-  const trimmed = raw.trim();
-  if (trimmed.length > maxLen) return trimmed.slice(0, maxLen);
-  return trimmed;
-}
-
 export interface QueryWizardRequest {
   query: string;
   ontologyId?: OntologyId;
@@ -64,7 +55,7 @@ export class QueryWizard {
   async search(req: QueryWizardRequest): Promise<EntityRecord[]> {
     this.runtime.assertAllowed("query", "analytics");
     const ont = req.ontologyId ?? defaultOntology();
-    const needle = normalizeSearchQuery(req.query);
+    const needle = req.query.trim();
     if (!needle) {
       return [];
     }

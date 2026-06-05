@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
-import { resolveWithinDirectory } from "@daemon/context-ports";
+import { join } from "node:path";
 import { configsPath } from "../paths.js";
 
 /** Safe extension pack directory names (no path segments). */
@@ -30,8 +30,8 @@ export function assertValidExtensionPackId(extensionId: string): void {
       `invalid extension pack id "${extensionId}" (expected ${EXTENSION_PACK_ID_PATTERN})`,
     );
   }
-  const packDir = resolveWithinDirectory(extensionsPackRoot(), extensionId);
-  const manifestPath = resolveWithinDirectory(packDir, "pack.yaml");
+  const packDir = join(extensionsPackRoot(), extensionId);
+  const manifestPath = join(packDir, "pack.yaml");
   if (!existsSync(manifestPath)) {
     const known = listKnownExtensionPackIds();
     const hint =
