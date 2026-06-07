@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { DaemonError, ErrorCodes } from "@daemon/platform-types";
 import {
   SourceCatalog,
@@ -16,19 +16,27 @@ import {
 } from "./ingest.service";
 
 @Injectable()
-export class IngestPipelineService {
+export class IngestPipelineService implements OnModuleInit, OnModuleDestroy {
   private readonly catalog: SourceCatalog;
   private readonly stream = new StreamPipeline<IngestRecord>();
+  private pg: import("@daemon/data-platform/operational-store").PostgresClient | undefined;
 
   constructor(
     private readonly ingest: IngestService,
     env: NodeJS.ProcessEnv = process.env,
   ) {
     this.catalog = SourceCatalog.fromYamlFile();
-    this.stream.on(async () => {
-      /* hot-path hook — propagation subscribers register here in workers */
-    });
     void env;
+  }
+
+  async onModuleInit(): Promise<void> {
+    if (!process.env.DAEMON_POSTGRES_URL) return;
+    const { PostgresClient } = await import("@daemon/data-platform/operational-store");
+    this.pg = new PostgresClient({ connectionString: process.env.DAEMON_POSTGRES_URL });
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.pg?.close();
   }
 
   static create(
@@ -43,7 +51,7 @@ export class IngestPipelineService {
     sourceId: string,
   ): Promise<IngestResult> {
     const source = this.catalog.require(sourceId);
-    const queryExecutor = await this.resolveQueryExecutor();
+    const queryExecutor = this.resolveQueryExecutor();
     const connector = createConnectorForSource(source, {
       queryExecutor,
       cdcQueryExecutor: queryExecutor
@@ -77,19 +85,16 @@ export class IngestPipelineService {
     return this.ingest.persistIngestRecords(ctx, sourceId, records);
   }
 
-  private async resolveQueryExecutor() {
-    const url = process.env.DAEMON_POSTGRES_URL;
-    if (!url) return undefined;
-    const { PostgresClient } = await import(
-      "@daemon/data-platform/operational-store"
-    );
-    const client = new PostgresClient({ connectionString: url });
+  /** Returns a query executor backed by the shared pg client, or undefined if not configured. */
+  private resolveQueryExecutor() {
+    if (!this.pg) return undefined;
+    const pg = this.pg;
     return {
       query: async <T extends Record<string, unknown>>(
         sql: string,
         params?: ReadonlyArray<unknown>,
       ) => {
-        const result = await client.query<T>(sql, params ?? []);
+        const result = await pg.query<T>(sql, params ?? []);
         return result.rows;
       },
     };
