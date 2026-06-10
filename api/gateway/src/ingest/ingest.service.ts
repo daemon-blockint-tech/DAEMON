@@ -56,25 +56,29 @@ export class IngestService {
       "@daemon/data-platform/operational-store"
     );
     const client = new PostgresClient({ connectionString: url });
-    const { rows } = await client.query<{
-      id: string;
-      source_id: string;
-      last_status: string | null;
-      last_run_at: string | null;
-    }>(
-      `SELECT id, source_id, last_status, last_run_at
-       FROM daemon_ingest_schedules
-       ORDER BY updated_at DESC NULLS LAST
-       LIMIT 100`,
-    );
-    return {
-      items: rows.map((r) => ({
-        jobId: r.id,
-        status: r.last_status ?? "scheduled",
-        sourceId: r.source_id,
-        startedAt: r.last_run_at ?? undefined,
-      })),
-    };
+    try {
+      const { rows } = await client.query<{
+        id: string;
+        source_id: string;
+        last_status: string | null;
+        last_run_at: string | null;
+      }>(
+        `SELECT id, source_id, last_status, last_run_at
+         FROM daemon_ingest_schedules
+         ORDER BY updated_at DESC NULLS LAST
+         LIMIT 100`,
+      );
+      return {
+        items: rows.map((r) => ({
+          jobId: r.id,
+          status: r.last_status ?? "scheduled",
+          sourceId: r.source_id,
+          startedAt: r.last_run_at ?? undefined,
+        })),
+      };
+    } finally {
+      await client.close();
+    }
   }
 
   async getJob(jobId: string): Promise<JobResult> {
